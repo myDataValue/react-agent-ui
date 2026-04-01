@@ -5,6 +5,7 @@ export { AgentStep } from './components/AgentStep';
 
 // Hooks
 export { useAgentActions } from './hooks/useAgentActions';
+export { useAgentAction } from './hooks/useAgentAction';
 export { useAgentCommandRouter } from './hooks/useAgentCommandRouter';
 
 // Schema utilities
