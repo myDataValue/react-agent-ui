@@ -4,6 +4,14 @@ Declarative React library for agent-driven UI control with visual guided executi
 
 The agent drives the **real UI** — it opens the actual dropdown, clicks the actual button, with the user watching. "Let me show you how" instead of "I did it for you." After seeing it twice, users do it themselves.
 
+## Why
+
+Every SaaS adding an AI agent faces the same problem: the agent does things programmatically but the user never learns where buttons are or how the UI works. They become dependent on the agent.
+
+The alternative — agents generating UI at runtime — is worse. Generated UI is unpredictable and breaks muscle memory.
+
+**The right pattern**: the agent drives the real UI. It scrolls to the button, spotlights it, pauses so the user sees it, then clicks it. The user watches and learns. Nothing else does this.
+
 ## Install
 
 ```bash
@@ -14,56 +22,37 @@ npm install react react-dom zod
 
 ## Quick Start
 
-Wrap your app (or a subtree) with the provider:
+```tsx
+import { AgentActionProvider, AgentAction, useAgentAction, useAgentActions } from 'react-agent-ui';
+import { z } from 'zod';
+```
+
+### 1. Wrap your app
 
 ```tsx
-import { AgentActionProvider } from 'react-agent-ui';
-
 <AgentActionProvider mode="guided" stepDelay={600}>
   <App />
 </AgentActionProvider>
 ```
 
-### Single element — agent clicks a button
+### 2. Register actions
+
+**Visual actions** — wrap an element, the agent spotlights and clicks it:
 
 ```tsx
-import { AgentAction } from 'react-agent-ui';
-
 <AgentAction name="export_csv" description="Export properties to CSV">
   <ExportButton />
 </AgentAction>
 ```
 
-When the agent calls `execute("export_csv")`, the library scrolls to the button, spotlights it with a dimmed overlay and pulsing ring, pauses so the user sees it, then clicks it.
-
-### Multi-step — sequential UI interactions
+**Parameterized actions** — spotlight the element, call your function:
 
 ```tsx
-import { AgentAction, AgentStep } from 'react-agent-ui';
-
-<AgentAction name="sync_data" description="Sync data from Booking.com">
-  <AgentStep label="Open sync menu">
-    <SyncDropdownTrigger />
-  </AgentStep>
-  <AgentStep label="Click sync">
-    <SyncButton />
-  </AgentStep>
-</AgentAction>
-```
-
-Each step is spotlighted and clicked in sequence. The delay between steps lets animations complete (dropdowns opening, etc.).
-
-### Parameterized — agent passes data, UI shows where
-
-```tsx
-import { AgentAction } from 'react-agent-ui';
-import { z } from 'zod';
-
 <AgentAction
   name="sync_properties"
   description="Sync specific properties"
   parameters={z.object({
-    property_ids: z.array(z.number()).optional().describe("IDs to sync, omit for all")
+    property_ids: z.array(z.number()).optional().describe("IDs to sync")
   })}
   onExecute={(params) => triggerSync(params.property_ids)}
 >
@@ -71,78 +60,93 @@ import { z } from 'zod';
 </AgentAction>
 ```
 
-The button is spotlighted (so the user sees *where* this action lives), then `onExecute` handles the logic with the agent's parameters. The element is the visual anchor, `onExecute` is the brain.
-
-## Consuming — `useAgentActions()`
+**Programmatic actions** — no UI element, just register the action:
 
 ```tsx
-import { useAgentActions } from 'react-agent-ui';
+useAgentAction({
+  name: 'navigate_to_settings',
+  description: 'Navigate to settings page',
+  onExecute: () => navigate('/settings'),
+});
 
-function AgentBackend() {
-  const {
-    schemas,         // ToolSchema[] — generic format
-    openaiTools,     // OpenAI function calling format
-    anthropicTools,  // Anthropic tool use format
-    availableActions, // { name, description, disabled, hasParameters }[]
-    execute,         // (name: string, params?: Record<string, unknown>) => Promise<ExecutionResult>
-    isExecuting,     // boolean
-  } = useAgentActions();
-
-  // Send schemas to your agent backend
-  // Call execute() when the agent responds with a tool call
-}
+useAgentAction({
+  name: 'filter_by_tag',
+  description: 'Filter table by tag',
+  parameters: z.object({ tag_name: z.string() }),
+  onExecute: (p) => setFilter(p.tag_name),
+});
 ```
 
-`schemas`, `openaiTools`, and `anthropicTools` auto-update as `<AgentAction>` components mount/unmount. The agent always knows exactly what's available on the current screen.
+**Multi-step actions** — sequential clicks (e.g. open dropdown, then select):
 
-## Execution Modes
+```tsx
+<AgentAction name="sync_data" description="Sync from API">
+  <AgentStep label="Open sync menu">
+    <DropdownTrigger />
+  </AgentStep>
+  <AgentStep label="Click sync">
+    <SyncButton />
+  </AgentStep>
+</AgentAction>
+```
+
+### 3. Connect to your agent
+
+```tsx
+const { schemas, openaiTools, anthropicTools, execute, availableActions, isExecuting } = useAgentActions();
+
+// Send schemas to your agent backend (auto-updates as components mount/unmount)
+// Call execute("action_name", params) when the agent responds with a tool call
+```
+
+### 4. Integrate with existing handlers
+
+```tsx
+import { useAgentCommandRouter } from 'react-agent-ui';
+
+// Wraps any existing command handler — registered actions get visual execution,
+// unregistered ones fall through to your original handler.
+const handleCommand = useAgentCommandRouter(existingHandler, (cmd) => cmd.action);
+```
+
+## How it works
+
+1. `<AgentAction>` / `useAgentAction` register actions in a React context on mount, deregister on unmount
+2. The registry always reflects exactly what's on screen — schemas auto-generate from Zod parameter definitions
+3. `execute(name, params)` looks up the action, finds the DOM element via refs, runs: **scroll into view → dim surroundings → spotlight with pulsing ring → tooltip → pause → click/execute → cleanup**
+4. `<div style="display: contents">` wrapper provides DOM refs without affecting layout
+5. Components that mount = actions that exist. Navigate away = actions disappear. No manual sync.
+
+## API
+
+### `useAgentAction` vs `<AgentAction>`
+
+| | `useAgentAction` | `<AgentAction>` |
+|---|---|---|
+| **Use for** | Programmatic actions (navigation, mutations, filters) | Wrapping visible elements (buttons, inputs) |
+| **Visual** | No spotlight | Scrolls, spotlights, clicks the wrapped element |
+| **Renders** | Nothing | `<div style="display: contents">` around children |
+
+### Execution modes
 
 | Mode | Behavior | Use case |
 |------|----------|----------|
-| `"guided"` | Scroll → spotlight → pause → click/execute | Teaching the user, first-time flows |
+| `"guided"` | Scroll → spotlight → pause → click | Teaching users, first-time flows |
 | `"instant"` | Execute immediately, no visual | Power users, repeat actions |
 
-```tsx
-<AgentActionProvider mode="guided" stepDelay={600}>
-```
+### Provider props
 
-## Provider Props
+| Prop | Type | Default |
+|------|------|---------|
+| `mode` | `"guided" \| "instant"` | `"guided"` |
+| `stepDelay` | `number` | `600` |
+| `overlayOpacity` | `number` | `0.5` |
+| `spotlightPadding` | `number` | `8` |
+| `tooltipEnabled` | `boolean` | `true` |
+| `onExecutionStart` | `(name: string) => void` | — |
+| `onExecutionComplete` | `(result: ExecutionResult) => void` | — |
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `mode` | `"guided" \| "instant"` | `"guided"` | Execution mode |
-| `stepDelay` | `number` | `600` | Ms to hold spotlight before acting |
-| `overlayOpacity` | `number` | `0.5` | Overlay dim opacity (0-1) |
-| `spotlightPadding` | `number` | `8` | Px padding around spotlighted element |
-| `tooltipEnabled` | `boolean` | `true` | Show label tooltip during spotlight |
-| `onExecutionStart` | `(name: string) => void` | — | Callback when execution begins |
-| `onExecutionComplete` | `(result: ExecutionResult) => void` | — | Callback when execution ends |
-
-## WebSocket Adapter
-
-For agent backends communicating via WebSocket:
-
-```tsx
-import { createWebSocketAdapter, useWebSocketAdapter } from 'react-agent-ui';
-
-const adapter = createWebSocketAdapter({
-  socket: existingWebSocket,
-  parseToolCalls: (data) => {
-    if (data.type === 'agent_ui_command') {
-      return data.commands.map(cmd => ({
-        name: cmd.action,
-        arguments: cmd,
-      }));
-    }
-    return null;
-  },
-});
-
-// In your component:
-useWebSocketAdapter(adapter, { autoSendState: true });
-```
-
-## Disabled Actions
+### Disabled actions
 
 ```tsx
 <AgentAction
@@ -155,11 +159,11 @@ useWebSocketAdapter(adapter, { autoSendState: true });
 </AgentAction>
 ```
 
-Disabled actions appear in `availableActions` (so the agent knows they exist) but are excluded from `schemas` (so the agent won't try to call them). Calling `execute()` on a disabled action returns `{ success: false, error: "No pending changes to push" }`.
+Disabled actions appear in `availableActions` but are excluded from `schemas`. Calling `execute()` on a disabled action returns `{ success: false, error: "No pending changes to push" }`.
 
-## CSS Customization
+### CSS customization
 
-All injected overlay elements have class names for styling:
+All overlay elements have class names:
 
 ```css
 .react-agent-ui-spotlight { /* box-shadow overlay with cutout */ }
@@ -167,15 +171,9 @@ All injected overlay elements have class names for styling:
 .react-agent-ui-tooltip { /* label tooltip */ }
 ```
 
-## How It Works
+## Zero dependencies
 
-1. `<AgentAction>` components register themselves in a React context registry on mount, deregister on unmount
-2. The registry always reflects exactly what's on screen — auto-generates tool schemas from Zod parameter definitions
-3. When `execute(name, params)` is called, the executor looks up the action, finds the DOM element via refs, and runs the visual sequence
-4. A `<div style="display: contents">` wrapper provides DOM refs without affecting layout
-5. Multi-step actions sort their steps by DOM position and execute sequentially
-
-Zero runtime dependencies beyond React and Zod.
+Peer deps only: React 18+ and Zod. No runtime dependencies.
 
 ## License
 
