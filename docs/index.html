@@ -521,7 +521,7 @@
   <section class="hero">
     <img src="logo.svg" alt="Polter" class="hero-logo">
     <h1>AI agents that drive <br>your <span class="highlight">real UI</span></h1>
-    <p>The agent scrolls to the button, spotlights it, and clicks it &mdash; while the user watches and learns. Not generated UI. Not invisible execution. The real thing.</p>
+    <p>"Let me show you how" instead of "I did it for you."</p>
     <div class="hero-actions">
       <a href="https://github.com/myDataValue/polter" class="btn btn-primary">Get Started</a>
       <a href="#how" class="btn btn-secondary">See how it works</a>
@@ -550,17 +550,17 @@
       <div class="problem-card bad">
         <span class="tag">The status quo</span>
         <h3>Invisible execution</h3>
-        <p>The agent does things programmatically in the backend. The user never sees where buttons are. They become permanently dependent on the agent.</p>
+        <p>Agent does it behind the scenes. User never learns the UI. Permanent dependency.</p>
       </div>
       <div class="problem-card bad">
         <span class="tag">The alternative</span>
         <h3>Generated UI</h3>
-        <p>The agent conjures temporary UI at runtime. Unpredictable layouts that break muscle memory and create a disjointed product experience.</p>
+        <p>Agent creates throwaway UI. Breaks muscle memory. Unpredictable every time.</p>
       </div>
       <div class="problem-card good">
         <span class="tag">Polter</span>
         <h3>Drive the real UI</h3>
-        <p>The agent opens the actual dropdown, clicks the actual button. The user watches, learns the UI, and can do it themselves next time.</p>
+        <p>Agent clicks real buttons. User watches and learns. After twice, they do it themselves.</p>
       </div>
     </div>
   </section>
@@ -573,7 +573,7 @@
         <div class="step-num">1</div>
         <div>
           <h3>Wrap your app</h3>
-          <p>Add the provider. Choose guided mode (visual) or instant (power users).</p>
+          <p>Guided mode or instant. One prop.</p>
           <div class="code-block">
 <span class="tag">&lt;AgentActionProvider</span> <span class="attr">mode</span>=<span class="str">"guided"</span> <span class="attr">stepDelay</span>={<span class="type">600</span>}<span class="tag">&gt;</span>
   <span class="tag">&lt;App</span> <span class="tag">/&gt;</span>
@@ -585,7 +585,7 @@
         <div class="step-num">2</div>
         <div>
           <h3>Register actions</h3>
-          <p>Wrap any element. When the agent triggers it, polter scrolls, spotlights, and clicks.</p>
+          <p>Wrap any element. Polter handles the rest.</p>
           <div class="code-block">
 <span class="tag">&lt;AgentAction</span> <span class="attr">name</span>=<span class="str">"export_csv"</span> <span class="attr">description</span>=<span class="str">"Export to CSV"</span><span class="tag">&gt;</span>
   <span class="tag">&lt;ExportButton</span> <span class="tag">/&gt;</span>
@@ -597,7 +597,7 @@
         <div class="step-num">3</div>
         <div>
           <h3>Connect your agent</h3>
-          <p>Get auto-generated schemas. Send them to any LLM backend. Call execute when the agent responds.</p>
+          <p>Schemas auto-generate. Send to any LLM.</p>
           <div class="code-block">
 <span class="kw">const</span> { <span class="fn">schemas</span>, <span class="fn">execute</span> } = <span class="fn">useAgentActions</span>();
 <span class="cmt">// schemas auto-update as components mount/unmount</span>
@@ -609,7 +609,7 @@
         <div class="step-num">4</div>
         <div>
           <h3>Watch it work</h3>
-          <p>The agent scrolls to the element, dims the page, spotlights the target with a pulsing ring, moves an animated cursor, pauses so the user sees it, then clicks.</p>
+          <p>Scroll, dim, spotlight, cursor, click. The user sees everything.</p>
         </div>
       </div>
     </div>
@@ -621,43 +621,42 @@
     <div class="feature-grid">
       <div class="feature-card">
         <h3>Multi-step actions</h3>
-        <p>Open a dropdown, then select an option. Agent steps through each interaction sequentially with visual guidance at every step.</p>
+        <p>Open dropdown, select option. Sequential steps with visual guidance.</p>
       </div>
       <div class="feature-card">
         <h3>Lifecycle-aware schemas</h3>
-        <p>Actions exist when components are mounted. Navigate away and they disappear. The agent can only call what's actually on screen &mdash; no hallucinated clicks.</p>
+        <p>Mounted = exists. Unmounted = gone. Agent can't hallucinate clicks on things that aren't there.</p>
       </div>
       <div class="feature-card">
         <h3>Animated cursor</h3>
-        <p>A ghost cursor glides to each target before clicking, reinforcing the "someone is showing you" feeling. Opt-out with a single prop.</p>
+        <p>Ghost cursor glides to each target before clicking. Opt-out with one prop.</p>
       </div>
       <div class="feature-card">
         <h3>Simulated typing</h3>
-        <p>For text inputs, the agent types character-by-character into real inputs, triggering React's synthetic events properly.</p>
+        <p>Types character-by-character into real inputs. Triggers React events properly.</p>
       </div>
       <div class="feature-card">
         <h3>Guided &amp; instant modes</h3>
-        <p>Guided mode teaches with spotlights. Instant mode executes immediately for power users who already know the UI.</p>
+        <p>Guided for learning. Instant for power users. Switch anytime.</p>
       </div>
       <div class="feature-card">
         <h3>Zero dependencies</h3>
-        <p>Only React and Zod as peer deps. No runtime dependencies. Tiny bundle that won't bloat your app.</p>
+        <p>React + Zod peer deps only. No runtime dependencies.</p>
       </div>
       <div class="feature-card">
         <h3>Lazy target resolution</h3>
-        <p>Elements inside portals, popovers, and virtualized lists resolve on demand. The agent opens the container first, then finds the target.</p>
+        <p>Portals, popovers, virtualized lists. Opens the container, then finds the target.</p>
       </div>
       <div class="feature-card">
         <h3>DevTools included</h3>
-        <p>Built-in development panel to test actions, inspect schemas, and debug execution &mdash; no setup required.</p>
+        <p>Test actions, inspect schemas, debug execution. No setup.</p>
       </div>
     </div>
   </section>
 
   <!-- CTA -->
   <section class="cta">
-    <h2>Stop building two interfaces</h2>
-    <p>One UI. The agent uses it. The user learns it.</p>
+    <h2>One UI. Agent uses it. User learns it.</h2>
     <div class="hero-actions">
       <a href="https://github.com/myDataValue/polter" class="btn btn-primary">View on GitHub</a>
       <a href="https://www.npmjs.com/package/polter" class="btn btn-secondary">npm package</a>
