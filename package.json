@@ -19,7 +19,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "type-check": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "prepare": "tsup"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
