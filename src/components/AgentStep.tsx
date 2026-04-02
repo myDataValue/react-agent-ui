@@ -6,6 +6,8 @@ interface AgentStepProps {
   children?: React.ReactNode;
   /** Resolve the target element from the AgentTarget registry by matching this param's value. */
   fromParam?: string;
+  /** Resolve a named target from the AgentTarget registry (for static elements inside popovers/dropdowns). */
+  fromTarget?: string;
   /** Simulate typing the value of this param into the element. */
   setParam?: string;
   /** Set a value programmatically via onSetValue callback. */
@@ -20,6 +22,7 @@ export function AgentStep({
   label,
   children,
   fromParam,
+  fromTarget,
   setParam,
   setValue,
   onSetValue,
@@ -47,13 +50,14 @@ export function AgentStep({
       label,
       element,
       fromParam,
+      fromTarget,
       setParam,
       setValue,
       onSetValue: onSetValueRef.current,
       prepareView: prepareViewRef.current,
     });
     return () => stepContext.unregisterStep(id);
-  }, [id, label, fromParam, setParam, setValue, stepContext]);
+  }, [id, label, fromParam, fromTarget, setParam, setValue, stepContext]);
 
   if (!children) return null;
 

@@ -191,10 +191,15 @@ async function resolveStepElement(
     await delay(200, config.signal);
   }
 
-  // fromParam: resolve lazily from AgentTarget registry
+  // fromParam: resolve lazily from AgentTarget registry by param value
   if (target.fromParam && config.resolveTarget) {
     const paramValue = String(params[target.fromParam] ?? '');
     return config.resolveTarget(actionName, target.fromParam, paramValue, config.signal);
+  }
+
+  // fromTarget: resolve lazily from AgentTarget registry by name
+  if (target.fromTarget && config.resolveNamedTarget) {
+    return config.resolveNamedTarget(actionName, target.fromTarget, config.signal);
   }
 
   // Static element
@@ -265,8 +270,8 @@ async function executeGuided(
         // Set value programmatically via callback
         const value = params[target.setValue];
         target.onSetValue(value);
-      } else if (target.fromParam) {
-        // fromParam step: always click the resolved target (this IS the dropdown option)
+      } else if (target.fromParam || target.fromTarget) {
+        // Lazy-resolved step: always click the resolved target (dropdown option, popover button, etc.)
         element.click();
       } else if (action.onExecute) {
         // With onExecute: click intermediate steps (e.g. open dropdown),

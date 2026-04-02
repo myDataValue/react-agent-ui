@@ -6,6 +6,7 @@ interface StepData {
   label: string;
   element: HTMLElement | null;
   fromParam?: string;
+  fromTarget?: string;
   setParam?: string;
   setValue?: string;
   onSetValue?: (value: unknown) => void;
@@ -59,9 +60,9 @@ export function AgentAction({
     if (stepsRef.current.size > 0) {
       const steps = Array.from(stepsRef.current.values());
 
-      // Separate steps with elements (sortable by DOM position) from fromParam steps (no element)
+      // Separate steps with elements (sortable by DOM position) from lazy steps (no element)
       const withElements = steps.filter((s) => s.element);
-      const withoutElements = steps.filter((s) => !s.element && s.fromParam);
+      const withoutElements = steps.filter((s) => !s.element && (s.fromParam || s.fromTarget));
 
       // Sort steps with elements by DOM position
       withElements.sort((a, b) => {
@@ -77,6 +78,7 @@ export function AgentAction({
         label: s.label,
         element: s.element,
         fromParam: s.fromParam,
+        fromTarget: s.fromTarget,
         setParam: s.setParam,
         setValue: s.setValue,
         onSetValue: s.onSetValue,

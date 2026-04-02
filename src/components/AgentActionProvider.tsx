@@ -76,7 +76,38 @@ export function AgentActionProvider({
           if (
             entry.action === actionName &&
             entry.param === param &&
-            entry.value.toLowerCase() === normalizedValue &&
+            entry.value?.toLowerCase() === normalizedValue &&
+            entry.element.isConnected
+          ) {
+            return entry.element;
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, pollInterval));
+      }
+
+      return null;
+    },
+    [],
+  );
+
+  const resolveNamedTarget = useCallback(
+    async (
+      actionName: string,
+      name: string,
+      signal?: AbortSignal,
+    ): Promise<HTMLElement | null> => {
+      const maxWait = 3000;
+      const pollInterval = 50;
+      const start = Date.now();
+
+      while (Date.now() - start < maxWait) {
+        if (signal?.aborted) return null;
+
+        for (const entry of targetsRef.current.values()) {
+          if (
+            entry.action === actionName &&
+            entry.name === name &&
             entry.element.isConnected
           ) {
             return entry.element;
@@ -121,6 +152,7 @@ export function AgentActionProvider({
           tooltipEnabled,
           signal: controller.signal,
           resolveTarget,
+          resolveNamedTarget,
         });
         onExecutionComplete?.(result);
         return result;
@@ -142,7 +174,7 @@ export function AgentActionProvider({
         }
       }
     },
-    [mode, stepDelay, overlayOpacity, spotlightPadding, tooltipEnabled, onExecutionStart, onExecutionComplete, resolveTarget],
+    [mode, stepDelay, overlayOpacity, spotlightPadding, tooltipEnabled, onExecutionStart, onExecutionComplete, resolveTarget, resolveNamedTarget],
   );
 
   const availableActions = useMemo<AvailableAction[]>(

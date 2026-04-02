@@ -5,6 +5,8 @@ export interface ExecutionTarget {
   element: HTMLElement | null;
   /** Resolve element from AgentTarget registry by matching this param's value. */
   fromParam?: string;
+  /** Resolve element from AgentTarget registry by matching a named target. */
+  fromTarget?: string;
   /** Simulate typing the value of this param into the element. */
   setParam?: string;
   /** Set a value programmatically via onSetValue callback. */
@@ -16,9 +18,13 @@ export interface ExecutionTarget {
 
 export interface AgentTargetEntry {
   action: string;
-  param: string;
-  value: string;
   element: HTMLElement;
+  /** Parameter key — used with `value` for param-based resolution. */
+  param?: string;
+  /** Parameter value — matched against the agent's param value. */
+  value?: string;
+  /** Named target key — used for static lazy resolution via `fromTarget`. */
+  name?: string;
 }
 
 export interface RegisteredAction {
@@ -80,6 +86,12 @@ export interface ExecutorConfig {
     actionName: string,
     param: string,
     value: string,
+    signal?: AbortSignal,
+  ) => Promise<HTMLElement | null>;
+  /** Resolve a named target from the AgentTarget registry. Used by fromTarget steps. */
+  resolveNamedTarget?: (
+    actionName: string,
+    name: string,
     signal?: AbortSignal,
   ) => Promise<HTMLElement | null>;
 }
