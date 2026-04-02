@@ -153,6 +153,7 @@ export function AgentActionProvider({
         disabled: a.disabled,
         disabledReason: a.disabledReason,
         hasParameters: !!a.parameters,
+        isVisual: a.getExecutionTargets().length > 0,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [version],

@@ -64,6 +64,8 @@ export interface AvailableAction {
   disabled: boolean;
   disabledReason?: string;
   hasParameters: boolean;
+  /** True if the action has DOM targets (registered via AgentAction), false if programmatic (useAgentAction). */
+  isVisual: boolean;
 }
 
 export interface ExecutorConfig {

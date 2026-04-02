@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useAgentActions } from '../hooks/useAgentActions';
-import type { AvailableAction, ExecutionResult } from '../core/types';
+import type { AvailableAction, ExecutionResult, ToolSchema } from '../core/types';
 
 interface AgentDevToolsProps {
   /** Default open state. */
@@ -19,12 +19,35 @@ let logId = 0;
 
 const PANEL_WIDTH = 440;
 
+/**
+ * Extract parameter fields from a schema's JSON Schema properties.
+ */
+function getSchemaFields(
+  schemas: ToolSchema[],
+  actionName: string,
+): { name: string; type: string; description?: string; enumValues?: string[]; isRequired: boolean }[] {
+  const schema = schemas.find((s) => s.name === actionName);
+  if (!schema?.parameters) return [];
+
+  const params = schema.parameters as Record<string, unknown>;
+  const properties = (params.properties ?? {}) as Record<string, Record<string, unknown>>;
+  const required = ((params.required ?? []) as string[]);
+
+  return Object.entries(properties).map(([name, prop]) => ({
+    name,
+    type: (prop.type as string) ?? 'string',
+    description: prop.description as string | undefined,
+    enumValues: prop.enum as string[] | undefined,
+    isRequired: required.includes(name),
+  }));
+}
+
 export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
-  const { availableActions, execute, isExecuting, mode } = useAgentActions();
+  const { availableActions, execute, isExecuting, mode, schemas } = useAgentActions();
   const [open, setOpen] = useState(defaultOpen);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [expandedAction, setExpandedAction] = useState<string | null>(null);
-  const [paramInputs, setParamInputs] = useState<Record<string, string>>({});
+  const [paramInputs, setParamInputs] = useState<Record<string, Record<string, string>>>({});
   const [filter, setFilter] = useState('');
   const [tab, setTab] = useState<'actions' | 'log'>('actions');
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -33,36 +56,67 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
     if (tab === 'log') logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [log, tab]);
 
-  const handleExecute = useCallback(async (action: AvailableAction) => {
-    const entryId = ++logId;
-    let params: Record<string, unknown> | undefined;
+  const setFieldValue = useCallback((actionName: string, fieldName: string, value: string) => {
+    setParamInputs((prev) => ({
+      ...prev,
+      [actionName]: { ...prev[actionName], [fieldName]: value },
+    }));
+  }, []);
 
-    const raw = paramInputs[action.name];
-    if (raw?.trim()) {
-      try {
-        params = JSON.parse(raw);
-      } catch {
-        setLog(prev => [...prev, {
-          id: entryId, action: action.name, timestamp: Date.now(),
-          result: { success: false, actionName: action.name, error: 'Invalid JSON params' },
-        }]);
-        setTab('log');
-        return;
+  const handleExecute = useCallback(
+    async (action: AvailableAction) => {
+      const entryId = ++logId;
+      let params: Record<string, unknown> | undefined;
+
+      const fields = getSchemaFields(schemas, action.name);
+      const rawInputs = paramInputs[action.name];
+
+      if (fields.length > 0 && rawInputs) {
+        params = {};
+        for (const field of fields) {
+          const raw = rawInputs[field.name];
+          if (raw === undefined || raw === '') continue;
+
+          if (field.type === 'number' || field.type === 'integer') {
+            params[field.name] = Number(raw);
+          } else if (field.type === 'boolean') {
+            params[field.name] = raw === 'true';
+          } else if (field.type === 'array') {
+            try {
+              params[field.name] = JSON.parse(raw);
+            } catch {
+              setLog((prev) => [
+                ...prev,
+                {
+                  id: entryId,
+                  action: action.name,
+                  timestamp: Date.now(),
+                  result: { success: false, actionName: action.name, error: `Invalid JSON for ${field.name}` },
+                },
+              ]);
+              setTab('log');
+              return;
+            }
+          } else {
+            params[field.name] = raw;
+          }
+        }
       }
-    }
 
-    setLog(prev => [...prev, { id: entryId, action: action.name, params, timestamp: Date.now() }]);
-    setTab('log');
-    const result = await execute(action.name, params);
-    setLog(prev => prev.map(e => e.id === entryId ? { ...e, result } : e));
-  }, [execute, paramInputs]);
+      setLog((prev) => [...prev, { id: entryId, action: action.name, params, timestamp: Date.now() }]);
+      setTab('log');
+      const result = await execute(action.name, params);
+      setLog((prev) => prev.map((e) => (e.id === entryId ? { ...e, result } : e)));
+    },
+    [execute, paramInputs, schemas],
+  );
 
   const filtered = filter
-    ? availableActions.filter(a => a.name.includes(filter) || a.description.includes(filter))
+    ? availableActions.filter((a) => a.name.includes(filter) || a.description.includes(filter))
     : availableActions;
 
-  const visualActions = filtered.filter(a => a.name === 'search' || a.name === 'export_csv' || a.name === 'open_sisi_discount' || a.name === 'push_changes');
-  const programmaticActions = filtered.filter(a => !visualActions.includes(a));
+  const visualActions = filtered.filter((a) => a.isVisual);
+  const programmaticActions = filtered.filter((a) => !a.isVisual);
 
   // Toggle button
   if (!open) {
@@ -70,13 +124,25 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
       <button
         onClick={() => setOpen(true)}
         style={{
-          position: 'fixed', bottom: 16, right: 16, zIndex: 99990,
-          height: 36, paddingLeft: 12, paddingRight: 14,
-          borderRadius: 18, border: 'none', cursor: 'pointer',
-          background: '#3b82f6', color: 'white',
-          fontSize: 13, fontWeight: 600, fontFamily: 'system-ui, sans-serif',
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          zIndex: 99990,
+          height: 36,
+          paddingLeft: 12,
+          paddingRight: 14,
+          borderRadius: 18,
+          border: 'none',
+          cursor: 'pointer',
+          background: '#3b82f6',
+          color: 'white',
+          fontSize: 13,
+          fontWeight: 600,
+          fontFamily: 'system-ui, sans-serif',
           boxShadow: '0 2px 12px rgba(59,130,246,0.4)',
-          display: 'flex', alignItems: 'center', gap: 6,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
         }}
       >
         <span style={{ fontSize: 16 }}>&#9881;</span>
@@ -91,46 +157,58 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
       <div
         onClick={() => setOpen(false)}
         style={{
-          position: 'fixed', inset: 0, zIndex: 99989,
+          position: 'fixed',
+          inset: 0,
+          zIndex: 99989,
           background: 'rgba(0,0,0,0.15)',
         }}
       />
 
       {/* Side panel */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 99990,
-        width: PANEL_WIDTH, display: 'flex', flexDirection: 'column',
-        background: '#0f172a', color: '#e2e8f0',
-        boxShadow: '-4px 0 24px rgba(0,0,0,0.3)',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        fontSize: 13,
-      }}>
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 99990,
+          width: PANEL_WIDTH,
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#0f172a',
+          color: '#e2e8f0',
+          boxShadow: '-4px 0 24px rgba(0,0,0,0.3)',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+          fontSize: 13,
+        }}
+      >
         {/* Header */}
-        <div style={{
-          padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          borderBottom: '1px solid #1e293b',
-        }}>
+        <div
+          style={{
+            padding: '16px 20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid #1e293b',
+          }}
+        >
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Agent DevTools</div>
             <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
               {availableActions.length} actions registered · {mode} mode
             </div>
           </div>
-          <button onClick={() => setOpen(false)} style={closeBtnStyle}>✕</button>
+          <button onClick={() => setOpen(false)} style={closeBtnStyle}>
+            ✕
+          </button>
         </div>
 
         {/* Tabs */}
         <div style={{ display: 'flex', borderBottom: '1px solid #1e293b' }}>
-          <button
-            onClick={() => setTab('actions')}
-            style={tabStyle(tab === 'actions')}
-          >
+          <button onClick={() => setTab('actions')} style={tabStyle(tab === 'actions')}>
             Actions
           </button>
-          <button
-            onClick={() => setTab('log')}
-            style={tabStyle(tab === 'log')}
-          >
+          <button onClick={() => setTab('log')} style={tabStyle(tab === 'log')}>
             Log {log.length > 0 && `(${log.length})`}
           </button>
         </div>
@@ -142,7 +220,7 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
             <div style={{ padding: '12px 20px' }}>
               <input
                 value={filter}
-                onChange={e => setFilter(e.target.value)}
+                onChange={(e) => setFilter(e.target.value)}
                 placeholder="Filter actions..."
                 style={filterInputStyle}
               />
@@ -152,14 +230,15 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
             {visualActions.length > 0 && (
               <>
                 <SectionLabel>Visual (spotlight + click)</SectionLabel>
-                {visualActions.map(action => (
+                {visualActions.map((action) => (
                   <ActionRow
                     key={action.name}
                     action={action}
+                    schemas={schemas}
                     expanded={expandedAction === action.name}
                     onToggle={() => setExpandedAction(expandedAction === action.name ? null : action.name)}
-                    paramValue={paramInputs[action.name] ?? ''}
-                    onParamChange={v => setParamInputs(prev => ({ ...prev, [action.name]: v }))}
+                    fieldValues={paramInputs[action.name] ?? {}}
+                    onFieldChange={(field, value) => setFieldValue(action.name, field, value)}
                     onExecute={() => handleExecute(action)}
                     isExecuting={isExecuting}
                     badge="visual"
@@ -172,14 +251,15 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
             {programmaticActions.length > 0 && (
               <>
                 <SectionLabel>Programmatic</SectionLabel>
-                {programmaticActions.map(action => (
+                {programmaticActions.map((action) => (
                   <ActionRow
                     key={action.name}
                     action={action}
+                    schemas={schemas}
                     expanded={expandedAction === action.name}
                     onToggle={() => setExpandedAction(expandedAction === action.name ? null : action.name)}
-                    paramValue={paramInputs[action.name] ?? ''}
-                    onParamChange={v => setParamInputs(prev => ({ ...prev, [action.name]: v }))}
+                    fieldValues={paramInputs[action.name] ?? {}}
+                    onFieldChange={(field, value) => setFieldValue(action.name, field, value)}
                     onExecute={() => handleExecute(action)}
                     isExecuting={isExecuting}
                   />
@@ -202,12 +282,12 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
             ) : (
               <>
                 <div style={{ padding: '8px 20px', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={() => setLog([])} style={clearBtnStyle}>Clear</button>
+                  <button onClick={() => setLog([])} style={clearBtnStyle}>
+                    Clear
+                  </button>
                 </div>
-                {log.map(entry => (
-                  <div key={entry.id} style={{
-                    padding: '10px 20px', borderBottom: '1px solid #1e293b',
-                  }}>
+                {log.map((entry) => (
+                  <div key={entry.id} style={{ padding: '10px 20px', borderBottom: '1px solid #1e293b' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <StatusDot result={entry.result} />
                       <span style={{ fontWeight: 600, fontSize: 13 }}>{entry.action}</span>
@@ -215,13 +295,9 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
                         {new Date(entry.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
-                    {entry.params && (
-                      <pre style={logParamsStyle}>{JSON.stringify(entry.params, null, 2)}</pre>
-                    )}
+                    {entry.params && <pre style={logParamsStyle}>{JSON.stringify(entry.params, null, 2)}</pre>}
                     {entry.result && !entry.result.success && (
-                      <div style={{ marginTop: 4, fontSize: 12, color: '#f87171' }}>
-                        {entry.result.error}
-                      </div>
+                      <div style={{ marginTop: 4, fontSize: 12, color: '#f87171' }}>{entry.result.error}</div>
                     )}
                   </div>
                 ))}
@@ -235,62 +311,91 @@ export function AgentDevTools({ defaultOpen = false }: AgentDevToolsProps) {
   );
 }
 
-function ActionRow({ action, expanded, onToggle, paramValue, onParamChange, onExecute, isExecuting, badge }: {
+function ActionRow({
+  action,
+  schemas,
+  expanded,
+  onToggle,
+  fieldValues,
+  onFieldChange,
+  onExecute,
+  isExecuting,
+  badge,
+}: {
   action: AvailableAction;
+  schemas: ToolSchema[];
   expanded: boolean;
   onToggle: () => void;
-  paramValue: string;
-  onParamChange: (v: string) => void;
+  fieldValues: Record<string, string>;
+  onFieldChange: (field: string, value: string) => void;
   onExecute: () => void;
   isExecuting: boolean;
   badge?: string;
 }) {
+  const fields = getSchemaFields(schemas, action.name);
+
   return (
-    <div style={{
-      padding: '10px 20px', borderBottom: '1px solid #1e293b',
-      opacity: action.disabled ? 0.5 : 1,
-      cursor: 'pointer',
-    }}>
-      <div
-        onClick={onToggle}
-        style={{ display: 'flex', alignItems: 'center', gap: 8 }}
-      >
-        <span style={{ color: '#475569', fontSize: 10, flexShrink: 0 }}>
-          {expanded ? '▼' : '▶'}
-        </span>
+    <div
+      style={{
+        padding: '10px 20px',
+        borderBottom: '1px solid #1e293b',
+        opacity: action.disabled ? 0.5 : 1,
+        cursor: 'pointer',
+      }}
+    >
+      <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span style={{ color: '#475569', fontSize: 10, flexShrink: 0 }}>{expanded ? '\u25BC' : '\u25B6'}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontWeight: 600, color: '#93c5fd' }}>{action.name}</span>
             {badge && (
-              <span style={{
-                fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                background: '#1e3a5f', color: '#60a5fa', fontWeight: 600,
-              }}>
+              <span
+                style={{
+                  fontSize: 9,
+                  padding: '1px 5px',
+                  borderRadius: 3,
+                  background: '#1e3a5f',
+                  color: '#60a5fa',
+                  fontWeight: 600,
+                }}
+              >
                 {badge}
               </span>
             )}
             {action.disabled && (
-              <span style={{
-                fontSize: 9, padding: '1px 5px', borderRadius: 3,
-                background: '#3f1d1d', color: '#f87171', fontWeight: 600,
-              }}>
+              <span
+                style={{
+                  fontSize: 9,
+                  padding: '1px 5px',
+                  borderRadius: 3,
+                  background: '#3f1d1d',
+                  color: '#f87171',
+                  fontWeight: 600,
+                }}
+              >
                 disabled
               </span>
             )}
           </div>
           <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
-            {action.disabled && action.disabledReason
-              ? action.disabledReason
-              : action.description}
+            {action.disabled && action.disabledReason ? action.disabledReason : action.description}
           </div>
         </div>
         <button
-          onClick={e => { e.stopPropagation(); onExecute(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onExecute();
+          }}
           disabled={action.disabled || isExecuting}
           style={{
-            padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12,
-            fontWeight: 600, cursor: action.disabled ? 'not-allowed' : 'pointer',
-            background: action.disabled ? '#334155' : '#3b82f6', color: 'white',
+            padding: '5px 14px',
+            borderRadius: 6,
+            border: 'none',
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: action.disabled ? 'not-allowed' : 'pointer',
+            background: action.disabled ? '#334155' : '#3b82f6',
+            color: 'white',
             flexShrink: 0,
           }}
         >
@@ -300,19 +405,60 @@ function ActionRow({ action, expanded, onToggle, paramValue, onParamChange, onEx
 
       {expanded && (
         <div style={{ marginTop: 10, marginLeft: 18 }}>
-          {action.hasParameters ? (
-            <>
-              <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 4 }}>
-                Parameters (JSON)
-              </label>
-              <textarea
-                value={paramValue}
-                onChange={e => onParamChange(e.target.value)}
-                placeholder='{ "property_id": 12345 }'
-                rows={3}
-                style={textareaStyle}
-              />
-            </>
+          {fields.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {fields.map((field) => (
+                <div key={field.name}>
+                  <label style={{ fontSize: 11, color: '#64748b', display: 'block', marginBottom: 3 }}>
+                    {field.name}
+                    {field.isRequired && <span style={{ color: '#f87171', marginLeft: 2 }}>*</span>}
+                    {field.description && (
+                      <span style={{ color: '#475569', marginLeft: 6 }}>{field.description}</span>
+                    )}
+                  </label>
+                  {field.enumValues ? (
+                    <select
+                      value={fieldValues[field.name] ?? ''}
+                      onChange={(e) => onFieldChange(field.name, e.target.value)}
+                      style={fieldSelectStyle}
+                    >
+                      <option value="">Select...</option>
+                      {field.enumValues.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  ) : field.type === 'boolean' ? (
+                    <select
+                      value={fieldValues[field.name] ?? ''}
+                      onChange={(e) => onFieldChange(field.name, e.target.value)}
+                      style={fieldSelectStyle}
+                    >
+                      <option value="">Select...</option>
+                      <option value="true">true</option>
+                      <option value="false">false</option>
+                    </select>
+                  ) : field.type === 'array' ? (
+                    <textarea
+                      value={fieldValues[field.name] ?? ''}
+                      onChange={(e) => onFieldChange(field.name, e.target.value)}
+                      placeholder='[1, 2, 3]'
+                      rows={2}
+                      style={textareaStyle}
+                    />
+                  ) : (
+                    <input
+                      type={field.type === 'number' || field.type === 'integer' ? 'number' : 'text'}
+                      value={fieldValues[field.name] ?? ''}
+                      onChange={(e) => onFieldChange(field.name, e.target.value)}
+                      placeholder={field.description ?? field.name}
+                      style={fieldInputStyle}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
           ) : (
             <div style={{ fontSize: 12, color: '#475569' }}>No parameters</div>
           )}
@@ -324,11 +470,18 @@ function ActionRow({ action, expanded, onToggle, paramValue, onParamChange, onEx
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{
-      padding: '8px 20px', fontSize: 11, fontWeight: 700, color: '#475569',
-      textTransform: 'uppercase', letterSpacing: '0.05em',
-      background: '#0f172a', borderBottom: '1px solid #1e293b',
-    }}>
+    <div
+      style={{
+        padding: '8px 20px',
+        fontSize: 11,
+        fontWeight: 700,
+        color: '#475569',
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+        background: '#0f172a',
+        borderBottom: '1px solid #1e293b',
+      }}
+    >
       {children}
     </div>
   );
@@ -337,48 +490,115 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 function StatusDot({ result }: { result?: ExecutionResult }) {
   const color = !result ? '#fbbf24' : result.success ? '#4ade80' : '#f87171';
   return (
-    <span style={{
-      width: 8, height: 8, borderRadius: '50%', background: color,
-      display: 'inline-block', flexShrink: 0,
-    }} />
+    <span
+      style={{
+        width: 8,
+        height: 8,
+        borderRadius: '50%',
+        background: color,
+        display: 'inline-block',
+        flexShrink: 0,
+      }}
+    />
   );
 }
 
 const closeBtnStyle: React.CSSProperties = {
-  width: 28, height: 28, borderRadius: 6, border: '1px solid #334155',
-  background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 14,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: 28,
+  height: 28,
+  borderRadius: 6,
+  border: '1px solid #334155',
+  background: 'transparent',
+  color: '#94a3b8',
+  cursor: 'pointer',
+  fontSize: 14,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 };
 
 const tabStyle = (active: boolean): React.CSSProperties => ({
-  flex: 1, padding: '10px 0', border: 'none', cursor: 'pointer',
-  fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+  flex: 1,
+  padding: '10px 0',
+  border: 'none',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 600,
+  fontFamily: 'inherit',
   background: active ? '#1e293b' : 'transparent',
   color: active ? '#e2e8f0' : '#64748b',
   borderBottom: active ? '2px solid #3b82f6' : '2px solid transparent',
 });
 
 const filterInputStyle: React.CSSProperties = {
-  width: '100%', background: '#1e293b', border: '1px solid #334155',
-  borderRadius: 6, padding: '8px 12px', color: '#e2e8f0', fontSize: 13,
-  outline: 'none', fontFamily: 'inherit',
-};
-
-const clearBtnStyle: React.CSSProperties = {
-  padding: '4px 10px', borderRadius: 4, border: '1px solid #334155',
-  background: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: 11,
+  width: '100%',
+  background: '#1e293b',
+  border: '1px solid #334155',
+  borderRadius: 6,
+  padding: '8px 12px',
+  color: '#e2e8f0',
+  fontSize: 13,
+  outline: 'none',
   fontFamily: 'inherit',
 };
 
+const clearBtnStyle: React.CSSProperties = {
+  padding: '4px 10px',
+  borderRadius: 4,
+  border: '1px solid #334155',
+  background: 'transparent',
+  color: '#64748b',
+  cursor: 'pointer',
+  fontSize: 11,
+  fontFamily: 'inherit',
+};
+
+const fieldInputStyle: React.CSSProperties = {
+  width: '100%',
+  background: '#1e293b',
+  border: '1px solid #334155',
+  borderRadius: 6,
+  padding: '7px 10px',
+  color: '#e2e8f0',
+  fontSize: 12,
+  outline: 'none',
+  fontFamily: 'inherit',
+};
+
+const fieldSelectStyle: React.CSSProperties = {
+  width: '100%',
+  background: '#1e293b',
+  border: '1px solid #334155',
+  borderRadius: 6,
+  padding: '7px 10px',
+  color: '#e2e8f0',
+  fontSize: 12,
+  outline: 'none',
+  fontFamily: 'inherit',
+  cursor: 'pointer',
+};
+
 const textareaStyle: React.CSSProperties = {
-  width: '100%', background: '#1e293b', border: '1px solid #334155',
-  borderRadius: 6, padding: '8px 10px', color: '#e2e8f0', fontSize: 12,
-  outline: 'none', resize: 'vertical',
+  width: '100%',
+  background: '#1e293b',
+  border: '1px solid #334155',
+  borderRadius: 6,
+  padding: '8px 10px',
+  color: '#e2e8f0',
+  fontSize: 12,
+  outline: 'none',
+  resize: 'vertical',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 };
 
 const logParamsStyle: React.CSSProperties = {
-  marginTop: 4, padding: '6px 8px', background: '#1e293b', borderRadius: 4,
-  fontSize: 11, color: '#94a3b8', overflow: 'auto', maxHeight: 80,
+  marginTop: 4,
+  padding: '6px 8px',
+  background: '#1e293b',
+  borderRadius: 4,
+  fontSize: 11,
+  color: '#94a3b8',
+  overflow: 'auto',
+  maxHeight: 80,
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
 };
