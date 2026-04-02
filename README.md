@@ -1,4 +1,4 @@
-# react-agent-ui
+# polter
 
 Declarative React library for agent-driven UI control with visual guided execution.
 
@@ -15,7 +15,7 @@ The alternative — agents generating UI at runtime — is worse. Generated UI i
 ## Install
 
 ```bash
-npm install react-agent-ui
+npm install polter
 # peer deps
 npm install react react-dom zod
 ```
@@ -23,7 +23,7 @@ npm install react react-dom zod
 ## Quick Start
 
 ```tsx
-import { AgentActionProvider, AgentAction, useAgentAction, useAgentActions } from 'react-agent-ui';
+import { AgentActionProvider, AgentAction, useAgentAction, useAgentActions } from 'polter';
 import { z } from 'zod';
 ```
 
@@ -102,7 +102,7 @@ const { schemas, openaiTools, anthropicTools, execute, availableActions, isExecu
 ### 4. Integrate with existing handlers
 
 ```tsx
-import { useAgentCommandRouter } from 'react-agent-ui';
+import { useAgentCommandRouter } from 'polter';
 
 // Wraps any existing command handler — registered actions get visual execution,
 // unregistered ones fall through to your original handler.
@@ -166,9 +166,9 @@ Disabled actions appear in `availableActions` but are excluded from `schemas`. C
 All overlay elements have class names:
 
 ```css
-.react-agent-ui-spotlight { /* box-shadow overlay with cutout */ }
-.react-agent-ui-ring { /* pulsing border around target */ }
-.react-agent-ui-tooltip { /* label tooltip */ }
+.polter-spotlight { /* box-shadow overlay with cutout */ }
+.polter-ring { /* pulsing border around target */ }
+.polter-tooltip { /* label tooltip */ }
 ```
 
 ## Zero dependencies

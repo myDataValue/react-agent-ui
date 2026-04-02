@@ -8,13 +8,13 @@ function injectStyles(): void {
   stylesInjected = true;
 
   const style = document.createElement('style');
-  style.id = 'react-agent-ui-styles';
+  style.id = 'polter-styles';
   style.textContent = `
-    @keyframes react-agent-ui-pulse {
+    @keyframes polter-pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.7; transform: scale(1.02); }
     }
-    @keyframes react-agent-ui-fade-in {
+    @keyframes polter-fade-in {
       from { opacity: 0; transform: translateX(-50%) translateY(4px); }
       to { opacity: 1; transform: translateX(-50%) translateY(0); }
     }
@@ -38,12 +38,12 @@ function createSpotlight(
   const overlayRgba = `rgba(0, 0, 0, ${config.overlayOpacity})`;
 
   const container = document.createElement('div');
-  container.className = 'react-agent-ui-spotlight-container';
+  container.className = 'polter-spotlight-container';
   container.style.cssText = 'position:fixed;inset:0;z-index:99998;pointer-events:none;';
 
   // Box-shadow creates the dimmed overlay with a hole for the target
   const spotlight = document.createElement('div');
-  spotlight.className = 'react-agent-ui-spotlight';
+  spotlight.className = 'polter-spotlight';
   spotlight.style.cssText = `
     position:fixed;
     left:${rect.left - padding}px;
@@ -59,7 +59,7 @@ function createSpotlight(
 
   // Pulsing ring around the target
   const ring = document.createElement('div');
-  ring.className = 'react-agent-ui-ring';
+  ring.className = 'polter-ring';
   ring.style.cssText = `
     position:fixed;
     left:${rect.left - padding - 2}px;
@@ -70,7 +70,7 @@ function createSpotlight(
     border-radius:10px;
     z-index:99999;
     pointer-events:none;
-    animation:react-agent-ui-pulse 1.5s ease-in-out infinite;
+    animation:polter-pulse 1.5s ease-in-out infinite;
   `;
 
   container.appendChild(spotlight);
@@ -79,7 +79,7 @@ function createSpotlight(
   // Tooltip
   if (label && config.tooltipEnabled) {
     const tooltip = document.createElement('div');
-    tooltip.className = 'react-agent-ui-tooltip';
+    tooltip.className = 'polter-tooltip';
     tooltip.textContent = label;
 
     const spaceBelow = window.innerHeight - rect.bottom - padding;
@@ -103,7 +103,7 @@ function createSpotlight(
       white-space:nowrap;
       z-index:99999;
       pointer-events:none;
-      animation:react-agent-ui-fade-in 0.2s ease;
+      animation:polter-fade-in 0.2s ease;
       box-shadow:0 4px 12px rgba(0,0,0,0.15);
     `;
 
