@@ -25,6 +25,7 @@ function definitionToRegisteredAction(def: ActionDefinition<any>): RegisteredAct
     getExecutionTargets: () => [],
     route: def.route as RegisteredAction['route'],
     navigateVia: def.navigateVia,
+    mountTimeout: def.mountTimeout,
   };
 }
 
@@ -91,6 +92,7 @@ export function AgentActionProvider({
     if (registryAction) {
       if (!action.route) action.route = registryAction.route;
       if (!action.navigateVia) action.navigateVia = registryAction.navigateVia;
+      if (action.mountTimeout == null) action.mountTimeout = registryAction.mountTimeout;
     }
 
     actionsRef.current.set(action.name, action);
@@ -252,7 +254,9 @@ export function AgentActionProvider({
           for (const viaName of action.navigateVia) {
             if (controller.signal.aborted) break;
 
-            const viaAction = await waitForActionMount(viaName, controller.signal, 30000);
+            const viaRegistered = actionsRef.current.get(viaName);
+            const viaTimeout = viaRegistered?.mountTimeout ?? 10000;
+            const viaAction = await waitForActionMount(viaName, controller.signal, viaTimeout);
             if (!viaAction || viaAction.getExecutionTargets().length === 0) {
               return {
                 success: false,
@@ -272,7 +276,7 @@ export function AgentActionProvider({
           }
 
           // After the chain, wait for the terminal action to mount with DOM targets.
-          const mounted = await waitForActionMount(actionName, controller.signal, 30000);
+          const mounted = await waitForActionMount(actionName, controller.signal, action.mountTimeout ?? 10000);
           if (!mounted || mounted.getExecutionTargets().length === 0) {
             return {
               success: false,
@@ -289,11 +293,23 @@ export function AgentActionProvider({
             await navigateRef.current(path);
 
             // Wait for the <AgentAction> component to mount on the new page.
-            const mounted = await waitForActionMount(actionName, controller.signal);
+            const mounted = await waitForActionMount(actionName, controller.signal, action.mountTimeout);
             if (mounted) {
               action = mounted;
             }
           }
+        }
+
+        // Re-check disabled after navigation — the mounted version may have
+        // dynamic disabled state that the schema-only registry version didn't.
+        if (action.disabled) {
+          const result: ExecutionResult = {
+            success: false,
+            actionName,
+            error: action.disabledReason || 'Action is disabled',
+          };
+          onExecutionComplete?.(result);
+          return result;
         }
 
         const result = await executeAction(action, params ?? {}, executorConfig);

@@ -146,6 +146,60 @@ With `onExecute`, the executor skips clicking the last step (to avoid double-fir
 </AgentAction>
 ```
 
+## Communicating state to the agent
+
+There are three mechanisms for informing the agent about action availability and context. Each serves a different purpose — they are not interchangeable.
+
+**`description` — static preconditions (advisory)**
+
+Use for things that are always true about the action. The LLM reads the description in the tool schema and reasons about it. Nothing prevents the LLM from ignoring it — it's guidance, not enforcement.
+
+```ts
+export const grantAccess = defineAction({
+  name: 'grant_access',
+  description: 'Grant bot access to properties. Requires user to be logged in to extranet.',
+});
+```
+
+Good for: auth requirements, feature flags, usage notes that don't change at runtime.
+
+**`disabled` / `disabledReason` — dynamic availability (enforced)**
+
+Use for state that changes at runtime and the agent must not violate. Disabled actions are removed from the tool schema entirely — the LLM cannot call them.
+
+```tsx
+<AgentAction
+  name="push_changes"
+  description="Push pending markup changes"
+  disabled={!hasPendingChanges}
+  disabledReason="No pending changes to push"
+>
+  <PushButton />
+</AgentAction>
+```
+
+Good for: conditions that change during a session (pending changes, selection state, loading). Only works for mounted actions — registry-only actions can't be dynamically disabled.
+
+**App-level context — dynamic page state (advisory)**
+
+Polter exposes `schemas` and `availableActions` via `useAgentActions()`. Send these alongside your own app context (current page, filters, selections) to your agent backend however your transport works (WebSocket, REST, etc.):
+
+```tsx
+const { schemas } = useAgentActions();
+
+// Your app sends schemas + page context to the agent backend
+useEffect(() => {
+  sendToBackend({
+    available_tools: schemas,
+    current_page: 'dashboard',
+    search_query: searchTerm,
+    selected_count: selectedIds.size,
+  });
+}, [schemas, searchTerm, selectedIds.size]);
+```
+
+Good for: ambient state the agent needs for reasoning across all actions — not specific to any single action.
+
 ## Don't deeply nest `<AgentAction>` wrappers
 
 Each `<AgentAction>` renders a `<div style="display:contents">`. Nesting them creates a chain of `display:contents` divs. `getBoundingClientRect()` on these returns all zeros, causing spotlights to appear at (0,0):

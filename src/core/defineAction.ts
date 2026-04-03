@@ -28,6 +28,11 @@ export interface ActionDefinition<TParams = Record<string, unknown>> {
    * navigation path instead of being teleported directly to a route.
    */
   readonly navigateVia?: string[];
+  /**
+   * How long (ms) to wait for this action's component to mount after navigation.
+   * Defaults to 5000ms. Set higher for pages that load slowly
+   */
+  readonly mountTimeout?: number;
 }
 
 export function defineAction<TParams = Record<string, unknown>>(config: {
@@ -37,6 +42,7 @@ export function defineAction<TParams = Record<string, unknown>>(config: {
   route?: (params: TParams) => string;
   onExecute?: (params: TParams) => void | Promise<void>;
   navigateVia?: string[];
+  mountTimeout?: number;
 }): ActionDefinition<TParams> {
   return {
     name: config.name,
@@ -45,5 +51,6 @@ export function defineAction<TParams = Record<string, unknown>>(config: {
     route: config.route,
     onExecute: config.onExecute,
     navigateVia: config.navigateVia,
+    mountTimeout: config.mountTimeout,
   };
 }

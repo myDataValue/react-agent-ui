@@ -40,6 +40,8 @@ export interface RegisteredAction {
   route?: (params: Record<string, unknown>) => string;
   /** Chain of action names to execute sequentially before this action (from defineAction). */
   navigateVia?: string[];
+  /** How long (ms) to wait for this action's component to mount after navigation. */
+  mountTimeout?: number;
 }
 
 export interface ToolSchema {
