@@ -24,6 +24,7 @@ function definitionToRegisteredAction(def: ActionDefinition<any>): RegisteredAct
     disabledReason: undefined,
     getExecutionTargets: () => [],
     route: def.route as RegisteredAction['route'],
+    navigateVia: def.navigateVia,
   };
 }
 
@@ -85,10 +86,11 @@ export function AgentActionProvider({
   const registerAction = useCallback((action: RegisteredAction) => {
     const existing = actionsRef.current.get(action.name);
 
-    // Preserve route from registry definition when a component upgrades the action.
+    // Preserve route/navigateVia from registry definition when a component upgrades the action.
     const registryAction = registryRef.current.get(action.name);
-    if (registryAction && !action.route) {
-      action.route = registryAction.route;
+    if (registryAction) {
+      if (!action.route) action.route = registryAction.route;
+      if (!action.navigateVia) action.navigateVia = registryAction.navigateVia;
     }
 
     actionsRef.current.set(action.name, action);
@@ -191,8 +193,8 @@ export function AgentActionProvider({
 
   /** Poll actionsRef until the action has DOM targets (component mounted after navigation). */
   const waitForActionMount = useCallback(
-    async (name: string, signal?: AbortSignal): Promise<RegisteredAction | null> => {
-      const maxWait = 5000;
+    async (name: string, signal?: AbortSignal, timeout = 5000): Promise<RegisteredAction | null> => {
+      const maxWait = timeout;
       const pollInterval = 50;
       const start = Date.now();
 
@@ -233,20 +235,7 @@ export function AgentActionProvider({
       onExecutionStart?.(actionName);
 
       try {
-        // If this is a registry action with no DOM targets, navigate first.
-        const targets = action.getExecutionTargets();
-        if (targets.length === 0 && action.route && navigateRef.current) {
-          const path = action.route(params ?? {});
-          await navigateRef.current(path);
-
-          // Wait for the <AgentAction> component to mount on the new page.
-          const mounted = await waitForActionMount(actionName, controller.signal);
-          if (mounted) {
-            action = mounted;
-          }
-        }
-
-        const result = await executeAction(action, params ?? {}, {
+        const executorConfig = {
           mode,
           stepDelay,
           overlayOpacity,
@@ -256,7 +245,53 @@ export function AgentActionProvider({
           signal: controller.signal,
           resolveTarget,
           resolveNamedTarget,
-        });
+        };
+
+        if (action.navigateVia && action.navigateVia.length > 0) {
+          // Execute each action in the chain sequentially — spotlight, click, wait for next mount.
+          for (const viaName of action.navigateVia) {
+            if (controller.signal.aborted) break;
+
+            const viaAction = await waitForActionMount(viaName, controller.signal, 30000);
+            if (!viaAction || viaAction.getExecutionTargets().length === 0) {
+              return {
+                success: false,
+                actionName,
+                error: `Navigation chain action "${viaName}" not found or has no targets`,
+              };
+            }
+
+            const viaResult = await executeAction(viaAction, {}, executorConfig);
+            if (!viaResult.success) {
+              return {
+                success: false,
+                actionName,
+                error: `Navigation chain failed at "${viaName}": ${viaResult.error}`,
+              };
+            }
+          }
+
+          // After the chain, wait for the terminal action to mount with DOM targets.
+          const mounted = await waitForActionMount(actionName, controller.signal, 30000);
+          if (mounted) {
+            action = mounted;
+          }
+        } else {
+          // If this is a registry action with no DOM targets, navigate first.
+          const targets = action.getExecutionTargets();
+          if (targets.length === 0 && action.route && navigateRef.current) {
+            const path = action.route(params ?? {});
+            await navigateRef.current(path);
+
+            // Wait for the <AgentAction> component to mount on the new page.
+            const mounted = await waitForActionMount(actionName, controller.signal);
+            if (mounted) {
+              action = mounted;
+            }
+          }
+        }
+
+        const result = await executeAction(action, params ?? {}, executorConfig);
         onExecutionComplete?.(result);
         return result;
       } catch (err) {

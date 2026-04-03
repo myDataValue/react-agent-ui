@@ -38,6 +38,8 @@ export interface RegisteredAction {
   getExecutionTargets: () => ExecutionTarget[];
   /** Client-side route for navigation before execution (from defineAction). */
   route?: (params: Record<string, unknown>) => string;
+  /** Chain of action names to execute sequentially before this action (from defineAction). */
+  navigateVia?: string[];
 }
 
 export interface ToolSchema {

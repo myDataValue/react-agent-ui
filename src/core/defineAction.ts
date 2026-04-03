@@ -21,6 +21,13 @@ export interface ActionDefinition<TParams = Record<string, unknown>> {
   readonly route?: (params: TParams) => string;
   /** Handler for background execution (no UI component needed). */
   readonly onExecute?: (params: TParams) => void | Promise<void>;
+  /**
+   * Chain of action names to execute sequentially before this action.
+   * Each action in the chain is visually executed (spotlight → click), and the next
+   * action is waited on to mount before proceeding. This lets the user see the full
+   * navigation path instead of being teleported directly to a route.
+   */
+  readonly navigateVia?: string[];
 }
 
 export function defineAction<TParams = Record<string, unknown>>(config: {
@@ -29,6 +36,7 @@ export function defineAction<TParams = Record<string, unknown>>(config: {
   parameters?: unknown;
   route?: (params: TParams) => string;
   onExecute?: (params: TParams) => void | Promise<void>;
+  navigateVia?: string[];
 }): ActionDefinition<TParams> {
   return {
     name: config.name,
@@ -36,5 +44,6 @@ export function defineAction<TParams = Record<string, unknown>>(config: {
     parameters: config.parameters,
     route: config.route,
     onExecute: config.onExecute,
+    navigateVia: config.navigateVia,
   };
 }
