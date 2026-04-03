@@ -79,6 +79,28 @@ import { z } from 'zod';
 </AgentAction>
 ```
 
+**Modal interactions** — click a button to open a modal, type a value, then confirm:
+
+```tsx
+// Parent — 3-step flow: open → type → confirm
+<AgentAction name="apply_discount" parameters={z.object({ pct: z.number() })}
+  onExecute={async () => { /* await async work started by the confirm click */ }}>
+  <AgentStep label="Open settings">
+    <SettingsButton />
+  </AgentStep>
+  <AgentStep label="Set value" fromTarget="discount-input" setParam="pct" />
+  <AgentStep label="Confirm" fromTarget="confirm-btn" />
+</AgentAction>
+
+// Child (modal) — targets with prepareView to set up internal state
+<AgentTarget name="discount-input" prepareView={() => setMode("custom")}>
+  <Input value={value} onChange={...} />
+</AgentTarget>
+<AgentTarget name="confirm-btn">
+  <ConfirmButton />
+</AgentTarget>
+```
+
 ### 3. Connect to your agent
 
 ```tsx

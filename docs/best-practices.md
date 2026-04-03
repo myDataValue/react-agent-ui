@@ -120,6 +120,56 @@ useAgentAction([
 ]);
 ```
 
+## Use `AgentTarget prepareView` for modal interactions
+
+When an action involves a modal or dialog with internal state, use `prepareView` on `AgentTarget` to prepare the child component's state before polter interacts with it. Use `setParam` on the `AgentStep` to visually type values into inputs — don't set values programmatically when the user should see the interaction.
+
+```tsx
+// Parent component — 3-step flow: open modal → type value → click confirm
+<AgentAction name="run_discount" parameters={z.object({ pct: z.number() })}
+  onExecute={async () => {
+    // The confirm click starts async work — await it here so the action
+    // doesn't complete until the work is done.
+    await streamingPromiseRef.current;
+  }}>
+  <AgentStep label="Open settings">
+    <OpenButton />
+  </AgentStep>
+  <AgentStep label="Set discount" fromTarget="discount-input" setParam="pct" />
+  <AgentStep label="Confirm" fromTarget="done-btn" />
+</AgentAction>
+
+// Child component (modal) — targets wrap interactive elements
+function DiscountModal({ onConfirm }) {
+  const [mode, setMode] = useState("preset");
+  const [value, setValue] = useState(10);
+
+  return (
+    <Dialog>
+      {/* prepareView selects Custom mode so the input is enabled */}
+      <AgentTarget name="discount-input" prepareView={() => setMode("custom")}>
+        <Input value={value} onChange={e => setValue(+e.target.value)} />
+      </AgentTarget>
+
+      <AgentTarget name="done-btn">
+        <Button onClick={() => onConfirm(value)}>Done ({value}%)</Button>
+      </AgentTarget>
+    </Dialog>
+  );
+}
+```
+
+The flow:
+1. Polter clicks the entry button → modal opens
+2. Polter polls for `discount-input` → `prepareView` selects Custom mode → polter **types** the value into the input
+3. Polter polls for `done-btn` → spotlights and clicks Confirm
+4. `onExecute` awaits the async work started by the click
+
+**Key rules:**
+- Use `prepareView` on `AgentTarget` for state changes that enable interaction (e.g. selecting a radio so an input becomes enabled)
+- Use `setParam` on `AgentStep` to visually type values — don't set them programmatically
+- Use `onExecute` to await async operations that the final click triggers (polter doesn't await click handlers)
+
 ## Multi-step is required for dropdowns
 
 With `onExecute`, the executor skips clicking the last step (to avoid double-firing). If your action has only one step, the click never happens — the dropdown won't open:
