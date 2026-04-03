@@ -167,6 +167,26 @@ The component pattern is for actions that have a single, visible UI element to s
   onExecute={handleSync} />
 ```
 
+### Wrap conditionally rendered elements with `<AgentAction>` on the outside
+
+`<AgentAction>` always registers the action regardless of whether its children are rendered. Keep the wrapper always-rendered and put the condition inside — `onExecute` works even when there's nothing visible to spotlight:
+
+```tsx
+// Bad — conditionally rendering the AgentAction itself, action disappears when button is hidden
+{selectedIds.size > 0 && (
+  <AgentAction name="grant_access" description="Grant access" onExecute={() => handleGrant()}>
+    <Button onClick={handleGrant}>Grant Access ({selectedIds.size})</Button>
+  </AgentAction>
+)}
+
+// Good — AgentAction always registered, button conditionally rendered inside
+<AgentAction name="grant_access" description="Grant access" onExecute={() => handleGrant()}>
+  {selectedIds.size > 0 && (
+    <Button onClick={handleGrant}>Grant Access ({selectedIds.size})</Button>
+  )}
+</AgentAction>
+```
+
 ### Use `useAgentAction` hook for per-row and programmatic actions
 
 When N rows each have their own button (sync, edit, navigate), you can't wrap each with `<AgentAction>` — same name would register N times, each overwriting the last. Use the hook + `<AgentTarget>` on each row's element:

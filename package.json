@@ -1,5 +1,5 @@
 {
-  "name": "polter",
+  "name": "@mydatavalue/polter",
   "version": "0.1.0",
   "description": "Declarative React library for agent-driven UI control with visual guided execution",
   "main": "dist/index.js",
