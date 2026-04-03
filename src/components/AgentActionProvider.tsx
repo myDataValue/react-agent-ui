@@ -167,6 +167,7 @@ export function AgentActionProvider({
       actionName: string,
       name: string,
       signal?: AbortSignal,
+      params?: Record<string, unknown>,
     ): Promise<HTMLElement | null> => {
       const maxWait = 3000;
       const pollInterval = 50;
@@ -181,6 +182,9 @@ export function AgentActionProvider({
             entry.name === name &&
             entry.element.isConnected
           ) {
+            if (entry.prepareView && params) {
+              await entry.prepareView(params);
+            }
             return entry.element;
           }
         }

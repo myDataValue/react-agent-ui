@@ -11,6 +11,8 @@ interface AgentTargetProps {
   value?: string;
   /** Named target key (for fromTarget resolution — static elements inside popovers/dropdowns). */
   name?: string;
+  /** Run a callback to prepare component state before the agent interacts with this target. Runs in the child's scope so it can access internal state. */
+  prepareView?: (params: Record<string, unknown>) => void | Promise<void>;
 }
 
 /**
@@ -35,10 +37,12 @@ interface AgentTargetProps {
  * </AgentTarget>
  * ```
  */
-export function AgentTarget({ action, param, value, name, children }: AgentTargetProps) {
+export function AgentTarget({ action, param, value, name, prepareView, children }: AgentTargetProps) {
   const id = useId();
   const wrapperRef = useRef<HTMLDivElement>(null);
   const context = useContext(AgentActionContext);
+  const prepareViewRef = useRef(prepareView);
+  prepareViewRef.current = prepareView;
 
   if (!context) {
     throw new Error('AgentTarget must be used within an AgentActionProvider');
@@ -49,7 +53,7 @@ export function AgentTarget({ action, param, value, name, children }: AgentTarge
   useEffect(() => {
     const element = wrapperRef.current?.firstElementChild as HTMLElement | null;
     if (element) {
-      registerTarget(id, { action, param, value, name, element });
+      registerTarget(id, { action, param, value, name, element, prepareView: prepareViewRef.current });
     }
     return () => unregisterTarget(id);
   }, [id, action, param, value, name, registerTarget, unregisterTarget]);

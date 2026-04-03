@@ -269,7 +269,7 @@ async function resolveStepElement(
 
   // fromTarget: resolve lazily from AgentTarget registry by name
   if (target.fromTarget && config.resolveNamedTarget) {
-    return config.resolveNamedTarget(actionName, target.fromTarget, config.signal);
+    return config.resolveNamedTarget(actionName, target.fromTarget, config.signal, params);
   }
 
   // Static element

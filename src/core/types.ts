@@ -26,6 +26,8 @@ export interface AgentTargetEntry {
   value?: string;
   /** Named target key — used for static lazy resolution via `fromTarget`. */
   name?: string;
+  /** Run a callback to prepare component state before the agent interacts with this target. */
+  prepareView?: (params: Record<string, unknown>) => void | Promise<void>;
 }
 
 export interface RegisteredAction {
@@ -86,6 +88,7 @@ export interface ExecutorConfig {
     actionName: string,
     name: string,
     signal?: AbortSignal,
+    params?: Record<string, unknown>,
   ) => Promise<HTMLElement | null>;
 }
 
