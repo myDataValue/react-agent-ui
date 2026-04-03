@@ -42,6 +42,8 @@ export interface RegisteredAction {
   navigateVia?: string[];
   /** How long (ms) to wait for this action's component to mount after navigation. */
   mountTimeout?: number;
+  /** True when registered by an `<AgentAction>` component (vs schema-only from registry). */
+  componentBacked?: boolean;
 }
 
 export interface ToolSchema {

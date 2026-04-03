@@ -111,6 +111,7 @@ export function AgentAction(props: AgentActionProps) {
       disabled,
       disabledReason,
       getExecutionTargets,
+      componentBacked: true,
     });
     return () => unregisterAction(name);
   }, [name, description, disabled, disabledReason, stableOnExecute, getExecutionTargets, registerAction, unregisterAction]);

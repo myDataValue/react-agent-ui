@@ -203,7 +203,7 @@ export function AgentActionProvider({
       while (Date.now() - start < maxWait) {
         if (signal?.aborted) return null;
         const current = actionsRef.current.get(name);
-        if (current && current.getExecutionTargets().length > 0) {
+        if (current && (current.componentBacked || current.getExecutionTargets().length > 0)) {
           return current;
         }
         await new Promise((r) => setTimeout(r, pollInterval));
@@ -277,7 +277,8 @@ export function AgentActionProvider({
 
           // After the chain, wait for the terminal action to mount with DOM targets.
           const mounted = await waitForActionMount(actionName, controller.signal, action.mountTimeout ?? 10000);
-          if (!mounted || mounted.getExecutionTargets().length === 0) {
+          if (!mounted || !mounted.componentBacked) {
+            // Still schema-only — component never mounted on the page
             return {
               success: false,
               actionName,
