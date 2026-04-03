@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import type { ExecutionTarget } from '../core/types';
+import type { ActionDefinition } from '../core/defineAction';
 import { AgentActionContext } from './AgentActionProvider';
 
 interface StepData {
@@ -20,28 +21,36 @@ interface AgentStepContextValue {
 
 export const AgentStepContext = createContext<AgentStepContextValue | null>(null);
 
-interface AgentActionProps {
-  name: string;
-  description: string;
-  parameters?: unknown;
+type AgentActionProps = {
   onExecute?: (params: Record<string, unknown>) => void | Promise<void>;
   disabled?: boolean;
   disabledReason?: string;
   children?: React.ReactNode;
-}
+} & (
+  | { action: ActionDefinition<any>; name?: string; description?: string; parameters?: unknown }
+  | { action?: never; name: string; description: string; parameters?: unknown }
+);
 
-export function AgentAction({
-  name,
-  description,
-  parameters,
-  onExecute,
-  disabled = false,
-  disabledReason,
-  children,
-}: AgentActionProps) {
+export function AgentAction(props: AgentActionProps) {
+  const {
+    action,
+    onExecute,
+    disabled = false,
+    disabledReason,
+    children,
+  } = props;
+
+  // Resolve from action definition, with inline props as overrides.
+  const name = props.name ?? action?.name;
+  const description = props.description ?? action?.description ?? '';
+  const parameters = props.parameters ?? action?.parameters;
+
   const context = useContext(AgentActionContext);
   if (!context) {
     throw new Error('AgentAction must be used within an AgentActionProvider');
+  }
+  if (!name) {
+    throw new Error('AgentAction requires either a "name" prop or an "action" prop');
   }
 
   const wrapperRef = useRef<HTMLDivElement>(null);

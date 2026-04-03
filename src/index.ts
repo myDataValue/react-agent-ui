@@ -10,6 +10,9 @@ export { useAgentAction } from './hooks/useAgentAction';
 export { useAgentActions } from './hooks/useAgentActions';
 export { useAgentCommandRouter } from './hooks/useAgentCommandRouter';
 
+// Action definitions
+export { defineAction } from './core/defineAction';
+
 // Schema utilities
 export { zodToJsonSchema, generateToolSchemas } from './core/schemaGenerator';
 
@@ -26,3 +29,4 @@ export type {
   AgentActionProviderProps,
   AgentActionContextValue,
 } from './core/types';
+export type { ActionDefinition } from './core/defineAction';

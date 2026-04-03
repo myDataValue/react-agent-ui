@@ -36,6 +36,8 @@ export interface RegisteredAction {
   disabled: boolean;
   disabledReason?: string;
   getExecutionTargets: () => ExecutionTarget[];
+  /** Client-side route for navigation before execution (from defineAction). */
+  route?: (params: Record<string, unknown>) => string;
 }
 
 export interface ToolSchema {
@@ -91,6 +93,10 @@ export interface AgentActionProviderProps {
   children: React.ReactNode;
   onExecutionStart?: (actionName: string) => void;
   onExecutionComplete?: (result: ExecutionResult) => void;
+  /** Pre-defined actions whose schemas are available before their components mount. */
+  registry?: import('./defineAction').ActionDefinition<any>[];
+  /** Router integration — called when executing a registry action that needs navigation. */
+  navigate?: (path: string) => void | Promise<void>;
 }
 
 export interface AgentActionContextValue {
