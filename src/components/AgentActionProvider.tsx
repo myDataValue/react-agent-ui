@@ -273,9 +273,14 @@ export function AgentActionProvider({
 
           // After the chain, wait for the terminal action to mount with DOM targets.
           const mounted = await waitForActionMount(actionName, controller.signal, 30000);
-          if (mounted) {
-            action = mounted;
+          if (!mounted || mounted.getExecutionTargets().length === 0) {
+            return {
+              success: false,
+              actionName,
+              error: `Action "${actionName}" did not mount after navigation chain — the page may require authentication or failed to load`,
+            };
           }
+          action = mounted;
         } else {
           // If this is a registry action with no DOM targets, navigate first.
           const targets = action.getExecutionTargets();
