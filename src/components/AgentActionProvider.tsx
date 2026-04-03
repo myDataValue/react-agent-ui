@@ -249,6 +249,22 @@ export function AgentActionProvider({
           resolveNamedTarget,
         };
 
+        // Validate params against the Zod schema before navigating — prevents
+        // wasted navigateVia chains when required params are missing.
+        const schema = action.parameters as any;
+        if (schema?.safeParse) {
+          const validation = schema.safeParse(params ?? {});
+          if (!validation.success) {
+            const missing = validation.error.issues
+              .map((i: any) => i.path.join('.'))
+              .filter(Boolean);
+            const error = missing.length > 0
+              ? `Required parameters missing: ${missing.join(', ')}`
+              : validation.error.issues.map((i: any) => i.message).join('; ');
+            return { success: false, actionName, error };
+          }
+        }
+
         if (action.navigateVia && action.navigateVia.length > 0) {
           // Execute each action in the chain sequentially — spotlight, click, wait for next mount.
           for (const viaName of action.navigateVia) {
