@@ -32,9 +32,13 @@ export function useAgentCommandRouter<T>(
   return useCallback(
     async (command: T): Promise<ExecutionResult | undefined> => {
       const actionName = getActionName(command);
-      const isRegistered = availableActions.some((a) => a.name === actionName && !a.disabled);
+      const match = availableActions.find((a) => a.name === actionName);
 
-      if (isRegistered) {
+      if (match?.disabled) {
+        return { success: false, actionName, error: match.disabledReason || 'Action is currently unavailable' };
+      }
+
+      if (match) {
         return await execute(actionName, command as Record<string, unknown>);
       }
 
